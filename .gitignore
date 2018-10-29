@@ -16,3 +16,8 @@
 /sol?/
 /myapi.key
 /conf/env.mk
+gradelib.py
+CODING
+GNUmakefile
+grade-lab1
+mergedep.pl
