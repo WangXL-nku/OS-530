@@ -408,7 +408,39 @@ pte_t *
 pgdir_walk(pde_t *pgdir, const void *va, int create)
 {
 	// Fill this function in
-	return NULL;
+	pte_t *page_base = NULL;
+
+	//获取线性地址va所对应的page directory index
+	unsigned int dic_off = PDX(va);
+
+	//pgdir为指向page directory的指针，所以加上dic_off为
+	pde_t * dic_entry_ptr = pgdir + dic_off;
+
+	//dic_entry_ptr指向PDE，PDE&PTE_P可以 得知 该页是否存在
+	if(!(*dic_entry_ptr & PTE_P))
+	{
+		if(create)
+		{
+			struct PageInfo *new_page = page_alloc(1);
+			if(new_page == NULL)
+			{
+				return NULL;
+			}
+			//新页面的引用次数记录增加
+			new_page->pp_ref++;
+			*dic_entry_ptr = (page2pa(new_page) | PTE_P | PTE_W | PTE_U);
+		}
+		return NULL;
+	}
+
+	//获取线性地址va所对应的page table index
+	unsigned int table_off = PTX(va);
+	//获取物理地址
+	page_base = KADDR(PTE_ADDR(*dic_entry_ptr));
+	//table_off + 通过page directory 获得的page_table指针 获取到PTE
+	pte_t* res = page_base + table_off;
+
+	return res;
 }
 
 //
