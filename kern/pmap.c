@@ -413,7 +413,7 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 	//获取线性地址va所对应的page directory index
 	unsigned int dic_off = PDX(va);
 
-	//pgdir为指向page directory的指针，所以加上dic_off为
+	//pgdir为指向page directory的指针，所以加上dic_off为PDE地址
 	pde_t * dic_entry_ptr = pgdir + dic_off;
 
 	//dic_entry_ptr指向PDE，PDE&PTE_P可以 得知 该页是否存在
@@ -457,10 +457,24 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 // mapped pages.
 //
 // Hint: the TA solution uses pgdir_walk
+
+//要求：将虚拟地址空间的[va, va+size)映射到以pgdir为根地址的页表中的物理地址空间的[pa, pa+size)
 static void
 boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
 {
 	// Fill this function in
+	pte_t* entry = NULL;
+	for( int nadd = 0; nadd < size; nadd += PGSIZE)
+	{
+		//获取到相应的PTE地址
+		entry = pgdir_walk(pgdir,(void *)va,1);
+		//将PTE地址对应的值改为题目要求的物理地址，低位的FLAGS也按照题目要求进行设置
+		*entry = (pa| perm |PTE_P);
+
+		//继续映射下一页
+		pa += PGSIZE;
+		va += PGSIZE;
+	}
 }
 
 //
@@ -488,10 +502,27 @@ boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm
 // Hint: The TA solution is implemented using pgdir_walk, page_remove,
 // and page2pa.
 //
+
+//在虚拟地址'va'处映射物理页'pp'。
 int
 page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 {
 	// Fill this function in
+	page_remove(pgdir,va);
+
+	pte_t *entry = NULL;
+	entry = pgdir_walk(pgdir, va, 1);
+	if( entry == NULL ) return -E_NO_MEM;
+
+	if( *entry & PTE_P )
+	{
+		tlb_invalidate(pgdir, va);
+		page_remove(pgdir, va);
+	}
+
+	*entry = (page2pa(pp)|perm|PTE_P);
+	pgdir[PDX(va)] |= perm;
+
 	return 0;
 }
 
@@ -506,11 +537,36 @@ page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 //
 // Hint: the TA solution uses pgdir_walk and pa2page.
 //
+
+//返回映射到虚拟地址va的页面
 struct PageInfo *
 page_lookup(pde_t *pgdir, void *va, pte_t **pte_store)
 {
 	// Fill this function in
-	return NULL;
+	struct PageInfo *res = NULL;
+
+	//如果 虚拟地址va 没有映射页面，则返回NULL，所以pgdir_walk的create参数设为0
+	pte_t* entry = pgdir_walk(pgdir,va,0);
+	if(entry == NULL)
+	{
+		return  NULL;
+	}
+	if(!(*entry & PTE_P))
+	{
+		return NULL;
+	}
+
+	//PTE_ADDR获取到PTE中所存的物理地址
+	//pa2page将物理地址转换为PageInfo结构
+	res = pa2page(PTE_ADDR(*entry));
+
+	//将 该页面的PTE地址entry 存储在pte_store中
+	if(pte_store != NULL)
+	{
+		*pte_store = entry;
+	}
+	
+	return res;
 }
 
 //
@@ -532,6 +588,18 @@ void
 page_remove(pde_t *pgdir, void *va)
 {
 	// Fill this function in
+	pte_t *pte = NULL;
+	struct PageInfo *page = page_lookup(pgdir, va, &pte);
+	if(page == NULL) return;
+
+	//该函数将 pp_ref-- 并如果为0则释放（及加入空页面列表）
+	page_decref(page);
+
+	//使TLB无效
+	tlb_invalidate(pgdir,va);
+
+	//PTE设为0
+	*pte = 0;
 }
 
 //
