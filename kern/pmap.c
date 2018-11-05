@@ -419,9 +419,12 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 	//dic_entry_ptr指向PDE，PDE&PTE_P可以 得知 该页是否存在
 	if(!(*dic_entry_ptr & PTE_P))
 	{
+		//按题目要求，根据create的值，返回不同结果
 		if(create)
 		{
+			//用page_alloc返回一个空页面的指针
 			struct PageInfo *new_page = page_alloc(1);
+			//没有空页面的情况
 			if(new_page == NULL)
 			{
 				return NULL;
@@ -435,7 +438,7 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 
 	//获取线性地址va所对应的page table index
 	unsigned int table_off = PTX(va);
-	//获取物理地址
+	//获取page_table的虚拟地址
 	page_base = KADDR(PTE_ADDR(*dic_entry_ptr));
 	//table_off + 通过page directory 获得的page_table指针 获取到PTE
 	pte_t* res = page_base + table_off;
