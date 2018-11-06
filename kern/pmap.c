@@ -408,8 +408,6 @@ pte_t *
 pgdir_walk(pde_t *pgdir, const void *va, int create)
 {
 	// Fill this function in
-	pte_t *page_base = NULL;
-
 	//获取线性地址va所对应的page directory index
 	unsigned int dic_off = PDX(va);
 
@@ -420,7 +418,7 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 	if(!(*dic_entry_ptr & PTE_P))
 	{
 		//按题目要求，根据create的值，返回不同结果
-		if(create)
+		if(create != false)
 		{
 			//用page_alloc返回一个空页面的指针
 			struct PageInfo *new_page = page_alloc(1);
@@ -433,12 +431,15 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 			new_page->pp_ref++;
 			*dic_entry_ptr = (page2pa(new_page) | PTE_P | PTE_W | PTE_U);
 		}
-		return NULL;
+		else{
+			return NULL;
+		}
 	}
 
 	//获取线性地址va所对应的page table index
 	unsigned int table_off = PTX(va);
 	//获取page_table的虚拟地址
+	pte_t *page_base = NULL;
 	page_base = KADDR(PTE_ADDR(*dic_entry_ptr));
 	//table_off + 通过page directory 获得的page_table指针 获取到PTE
 	pte_t* res = page_base + table_off;
@@ -464,7 +465,9 @@ boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm
 {
 	// Fill this function in
 	pte_t* entry = NULL;
-	for( int nadd = 0; nadd < size; nadd += PGSIZE)
+	int nadd;
+
+	for(nadd = 0; nadd < size; nadd += PGSIZE)
 	{
 		//获取到相应的PTE地址
 		entry = pgdir_walk(pgdir,(void *)va,1);
@@ -508,20 +511,34 @@ int
 page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 {
 	// Fill this function in
-	page_remove(pgdir,va);
 
+	//获取va对应的PTE地址
 	pte_t *entry = NULL;
 	entry = pgdir_walk(pgdir, va, 1);
-	if( entry == NULL ) return -E_NO_MEM;
 
-	if( *entry & PTE_P )
+	//按题目要求，当 va 对应地址无法被分配时，pgdir_walk会返回NULL，此时返回 -E_NO_MEM
+	if( entry == NULL ) 
 	{
-		tlb_invalidate(pgdir, va);
+		// cprintf("11");
+		return -E_NO_MEM;
+	}
+
+	//引用次数加一
+	pp->pp_ref++;
+
+	//当该va对应PTE已经分配物理地址时，将其 page_remove()d
+	if( (*entry) & PTE_P )
+	{
+		tlb_invalidate(pgdir,va);
 		page_remove(pgdir, va);
 	}
 
+	//将PTE赋值，令其指向物理页 ，低12位按照题目要求设置
 	*entry = (page2pa(pp)|perm|PTE_P);
+
+	//PDE低位按照题目要求进行设置
 	pgdir[PDX(va)] |= perm;
+	// cprintf("11");
 
 	return 0;
 }
