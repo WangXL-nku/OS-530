@@ -193,7 +193,12 @@ mem_init(void)
 	//      (ie. perm = PTE_U | PTE_P)
 	//    - pages itself -- kernel RW, user NONE
 	// Your code goes here:
-	boot_map_region(kern_pgdir,UPAGES,PTSIZE,PADDR(pages),PTE_U);
+	boot_map_region(
+					kern_pgdir,
+					UPAGES,
+					ROUNDUP(npages*sizeof(struct PageInfo),PGSIZE),
+					PADDR(pages),
+					PTE_U|PTE_P);
 
 	//////////////////////////////////////////////////////////////////////
 	// Use the physical memory that 'bootstack' refers to as the kernel
@@ -217,7 +222,7 @@ mem_init(void)
 	// we just set up the mapping anyway.
 	// Permissions: kernel RW, user NONE
 	// Your code goes here:
-
+	
 	boot_map_region(kern_pgdir, KERNBASE, 0xffffffff - KERNBASE, 0, PTE_W);
 
 	// Check that the initial page directory has been set up correctly.
@@ -412,15 +417,12 @@ page_decref(struct PageInfo* pp)
 pte_t *
 pgdir_walk(pde_t *pgdir, const void *va, int create)
 {
-	// Fill this function in
 	//获取线性地址va所对应的page directory index
 	unsigned int dic_off = PDX(va);
-
 	//pgdir为指向page directory的指针，所以加上dic_off为PDE地址
-	pde_t * dic_entry_ptr = pgdir + dic_off;
-
-	//dic_entry_ptr指向PDE，PDE&PTE_P可以 得知 该页是否存在
-	if(!(*dic_entry_ptr & PTE_P))
+	pde_t * pde_entry = pgdir + dic_off;
+	//pde_entry指向PDE，PDE&PTE_P可以 得知 该页是否存在
+	if(!(*pde_entry & PTE_P))
 	{
 		//按题目要求，根据create的值，返回不同结果
 		if(create != false)
@@ -434,21 +436,19 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 			}
 			//新页面的引用次数记录增加
 			new_page->pp_ref++;
-			*dic_entry_ptr = (page2pa(new_page) | PTE_P | PTE_W | PTE_U);
+			*pde_entry = (page2pa(new_page) | PTE_P | PTE_W | PTE_U);
 		}
 		else{
 			return NULL;
 		}
 	}
-
 	//获取线性地址va所对应的page table index
 	unsigned int table_off = PTX(va);
 	//获取page_table的虚拟地址
 	pte_t *page_base = NULL;
-	page_base = KADDR(PTE_ADDR(*dic_entry_ptr));
+	page_base = KADDR(PTE_ADDR(*pde_entry));
 	//table_off + 通过page directory 获得的page_table指针 获取到PTE
 	pte_t* res = page_base + table_off;
-
 	return res;
 }
 
@@ -468,17 +468,14 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 static void
 boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
 {
-	// Fill this function in
-	pte_t* entry = NULL;
-	int nadd;
-
-	for(nadd = 0; nadd < size; nadd += PGSIZE)
+	pte_t* pte_entry = NULL;
+	int n;
+	for(n = 0; n < size; n += PGSIZE)
 	{
 		//获取到相应的PTE地址
-		entry = pgdir_walk(pgdir,(void *)va,1);
+		pte_entry = pgdir_walk(pgdir,(void *)va,1);
 		//将PTE地址对应的值改为题目要求的物理地址，低位的FLAGS也按照题目要求进行设置
-		*entry = (pa| perm |PTE_P);
-
+		*pte_entry = (pa| perm |PTE_P);
 		//继续映射下一页
 		pa += PGSIZE;
 		va += PGSIZE;
@@ -515,36 +512,25 @@ boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm
 int
 page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 {
-	// Fill this function in
-
 	//获取va对应的PTE地址
 	pte_t *entry = NULL;
 	entry = pgdir_walk(pgdir, va, 1);
-
 	//按题目要求，当 va 对应地址无法被分配时，pgdir_walk会返回NULL，此时返回 -E_NO_MEM
 	if( entry == NULL ) 
 	{
-		// cprintf("11");
 		return -E_NO_MEM;
 	}
-
 	//引用次数加一
 	pp->pp_ref++;
-
 	//当该va对应PTE已经分配物理地址时，将其 page_remove()d
 	if( (*entry) & PTE_P )
 	{
-		tlb_invalidate(pgdir,va);
 		page_remove(pgdir, va);
 	}
-
 	//将PTE赋值，令其指向物理页 ，低12位按照题目要求设置
 	*entry = (page2pa(pp)|perm|PTE_P);
-
 	//PDE低位按照题目要求进行设置
-	pgdir[PDX(va)] |= perm;
-	// cprintf("11");
-
+	pgdir[PDX(va)] |= perm|PTE_P;
 	return 0;
 }
 
@@ -564,9 +550,7 @@ page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 struct PageInfo *
 page_lookup(pde_t *pgdir, void *va, pte_t **pte_store)
 {
-	// Fill this function in
 	struct PageInfo *res = NULL;
-
 	//如果 虚拟地址va 没有映射页面，则返回NULL，所以pgdir_walk的create参数设为0
 	pte_t* entry = pgdir_walk(pgdir,va,0);
 	if(entry == NULL)
@@ -577,17 +561,14 @@ page_lookup(pde_t *pgdir, void *va, pte_t **pte_store)
 	{
 		return NULL;
 	}
-
-	//PTE_ADDR获取到PTE中所存的物理地址
-	//pa2page将物理地址转换为PageInfo结构
-	res = pa2page(PTE_ADDR(*entry));
-
-	//将 该页面的PTE地址entry 存储在pte_store中
+	//将 该页面的PTE地址 存储在pte_store中
 	if(pte_store != NULL)
 	{
 		*pte_store = entry;
 	}
-	
+	//PTE_ADDR获取到PTE中所存的物理地址
+	//pa2page将物理地址转换为PageInfo结构
+	res = pa2page(PTE_ADDR(*entry));
 	return res;
 }
 
