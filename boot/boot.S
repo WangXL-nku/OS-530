@@ -45,6 +45,9 @@ seta20.2:
   # and segment translation that makes virtual addresses 
   # identical to their physical addresses, so that the 
   # effective memory map does not change during the switch.
+
+  # 使用引导GDT和段转换从真实切换到保护模式，使虚拟地址与其物理地址相同，以便在切换期间有效的内存映射不会改变。
+
   lgdt    gdtdesc
   movl    %cr0, %eax
   orl     $CR0_PE_ON, %eax
@@ -73,6 +76,7 @@ spin:
   jmp spin
 
 # Bootstrap GDT
+# 从对GDT的设定可以看出，段转换被禁用
 .p2align 2                                # force 4 byte alignment
 gdt:
   SEG_NULL				# null seg

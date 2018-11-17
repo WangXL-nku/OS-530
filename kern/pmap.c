@@ -78,7 +78,7 @@ static void check_page_installed_pgdir(void);
 // This function may ONLY be used during initialization,
 // before the page_free_list list has been set up.
 
-//返回下一个物理页地址
+//返回下一个物理页虚拟地址
 static void *
 boot_alloc(uint32_t n)
 {
@@ -90,6 +90,8 @@ boot_alloc(uint32_t n)
 	// which points to the end of the kernel's bss segment:
 	// the first virtual address that the linker did *not* assign
 	// to any kernel code or global variables.
+
+	//作者源码：
 	if (!nextfree) {
 		extern char end[];
 		nextfree = ROUNDUP((char *) end, PGSIZE);
@@ -371,8 +373,8 @@ page_free(struct PageInfo *pp)
 	// Hint: You may want to panic if pp->pp_ref is nonzero or
 	// pp->pp_link is not NULL.
 
-	if (pp->pp_ref > 0 || pp->pp_link != NULL) {
-        return;
+	if (pp->pp_ref != 0 || pp->pp_link != NULL) {
+        panic("mem_init: This function is not finished\n");
 	}
 	else{
 		pp->pp_link = page_free_list;
@@ -449,6 +451,12 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 	page_base = KADDR(PTE_ADDR(*pde_entry));
 	//table_off + 通过page directory 获得的page_table指针 获取到PTE
 	pte_t* res = page_base + table_off;
+	cprintf("page_base: %x",page_base);
+	cprintf("tb: %x",table_off);
+	cprintf("res: %x",res);
+	res = res + 1;
+	cprintf("res+1 : %x", res);
+	res = res-1;
 	return res;
 }
 
