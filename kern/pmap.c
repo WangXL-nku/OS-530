@@ -94,6 +94,7 @@ boot_alloc(uint32_t n)
 	//作者源码：
 	if (!nextfree) {
 		extern char end[];
+		//ROUNDUP向上取整，返回PGSIZE的整倍
 		nextfree = ROUNDUP((char *) end, PGSIZE);
 	}
 
@@ -291,7 +292,7 @@ page_init(void)
 	// 	page_free_list = &pages[i];
 	// }
 
-	//在本函数中用到的：IOPHYSMEM,EXTPHYSMEM使用的都是相对地址，不是虚拟地址
+	//在本函数中用到的：IOPHYSMEM,EXTPHYSMEM使用的都是物理地址，不是虚拟地址
 	size_t i;
 	for (i = 0; i < npages; i++)
 	{
@@ -306,11 +307,12 @@ page_init(void)
 			pages[i].pp_ref = 1;
 		}
 		//已经被占用的内存
-		//PADDR作用：从虚拟地址转换为相对地址
+		//PADDR作用：从虚拟地址转换物理地址
 		else if (i >= EXTPHYSMEM/PGSIZE && i < (PADDR(boot_alloc(0))/PGSIZE ))
 		{
             pages[i].pp_ref = 1;
         }
+		//The rest of base memory, [PGSIZE, npages_basemem * PGSIZE) is free.
 		else if(i <= npages_basemem)
 		{
 			pages[i].pp_ref = 0;
@@ -374,7 +376,7 @@ page_free(struct PageInfo *pp)
 	// pp->pp_link is not NULL.
 
 	if (pp->pp_ref != 0 || pp->pp_link != NULL) {
-        panic("mem_init: This function is not finished\n");
+        panic("This page is used\n");
 	}
 	else{
 		pp->pp_link = page_free_list;
@@ -416,6 +418,10 @@ page_decref(struct PageInfo* pp)
 // Hint 3: look at inc/mmu.h for useful macros that mainipulate page
 // table and page directory entries.
 //
+//函数参数pgdir为一个指向Page Directory底部的指针，
+//该函数需要将代表一个Linear Address 的 参数 va 
+//转换为其对应的Page Table（PTE）的指针，
+//并将该PTE指针返回。
 pte_t *
 pgdir_walk(pde_t *pgdir, const void *va, int create)
 {
@@ -451,12 +457,6 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 	page_base = KADDR(PTE_ADDR(*pde_entry));
 	//table_off + 通过page directory 获得的page_table指针 获取到PTE
 	pte_t* res = page_base + table_off;
-	cprintf("page_base: %x",page_base);
-	cprintf("tb: %x",table_off);
-	cprintf("res: %x",res);
-	res = res + 1;
-	cprintf("res+1 : %x", res);
-	res = res-1;
 	return res;
 }
 
@@ -595,6 +595,9 @@ page_lookup(pde_t *pgdir, void *va, pte_t **pte_store)
 // Hint: The TA solution is implemented using page_lookup,
 // 	tlb_invalidate, and page_decref.
 //
+//函数参数pgdir为一个指向Page Directory底部的指针，该函
+//数需要将代表一个Linear Address 的 参数 va 转换为其
+//对应的Page Table（PTE）的指针，并将该PTE指针返回。
 void
 page_remove(pde_t *pgdir, void *va)
 {
