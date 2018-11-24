@@ -220,7 +220,7 @@ mem_init(void)
 	//    - envs itself -- kernel RW, user NONE
 	// LAB 3: Your code here.
 
-	boot_alloc(kern_pgdir, UENVS, PTSIZE, PADDR(envs), PTE_U|PTE_P);
+	boot_map_region(kern_pgdir, UENVS, PTSIZE, PADDR(envs), PTE_U|PTE_P);
 
 	//////////////////////////////////////////////////////////////////////
 	// Use the physical memory that 'bootstack' refers to as the kernel

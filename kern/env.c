@@ -193,6 +193,18 @@ env_setup_vm(struct Env *e)
 
 	// LAB 3: Your code here.
 
+	e->env_pgdir = (pde_t*)page2kva(p);
+	p->pp_ref++;
+
+	for(i = 0; i < PDX(UTOP); i++)
+	{
+		e->env_pgdir[i] = 0;
+	}
+	for(i = PDX(UTOP); i < NPDENTRIES; i++)
+	{
+		e->env_pgdir[i] = kern_pgdir[i];
+	}
+
 	// UVPT maps the env's own page table read-only.
 	// Permissions: kernel R, user R
 	e->env_pgdir[PDX(UVPT)] = PADDR(e->env_pgdir) | PTE_P | PTE_U;
@@ -368,7 +380,7 @@ load_icode(struct Env *e, uint8_t *binary)
 
 	// LAB 3: Your code here.
 
-	struct Elf *ELFHDR = (struct ELF*) binary;
+	struct Elf *ELFHDR = (struct Elf*) binary;
 
 	if(ELFHDR->e_magic != ELF_MAGIC)
 	{
