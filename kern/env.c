@@ -111,11 +111,24 @@ envid2env(envid_t envid, struct Env **env_store, bool checkperm)
 // they are in the envs array (i.e., so that the first call to
 // env_alloc() returns envs[0]).
 //
+// 将所有 env 设为空闲，env_id设为0，并将它们加入 env_free_list
+// 保证所有 env在 env_free_list 中的顺序同 在 envs中顺序相同
 void
 env_init(void)
 {
 	// Set up envs array
 	// LAB 3: Your code here.
+
+	int i;
+	env_free_list = NULL;
+	//最终env_free_list 将指向 envs[0]
+	for(i = NENV - 1; i >= 0; i--)
+	{
+		envs[i].env_id = 0;
+		envs[i].env_status = ENV_FREE;
+		envs[i].env_link = env_free_list;
+		env_free_list = &envs[i];
+	}
 
 	// Per-CPU part of the initialization
 	env_init_percpu();
@@ -257,6 +270,9 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 // Pages should be writable by user and kernel.
 // Panic if any allocation attempt fails.
 //
+// 为 env 分配len bytes 的物理内存， 并将其映射到environment的地址空间中的虚拟地址 va
+// 不以任何方式归零或以其他方式初始化映射页面。
+// 页面应该允许用户和内核写入。
 static void
 region_alloc(struct Env *e, void *va, size_t len)
 {
@@ -267,6 +283,28 @@ region_alloc(struct Env *e, void *va, size_t len)
 	//   'va' and 'len' values that are not page-aligned.
 	//   You should round va down, and round (va + len) up.
 	//   (Watch out for corner-cases!)
+
+	// 根据提示，需要分配整PGSIZE空间,即需要对齐
+	void* start = (void *)ROUNDDOWN((uint32_t)va, PGSIZE);
+    void* end = (void *)ROUNDUP((uint32_t)va+len, PGSIZE);
+
+	struct PageInfo *p = NULL;
+	void* va_tmp;
+	for(va_tmp = start; va_tmp<end; va_tmp += PGSIZE)
+	{
+		p = page_alloc(0);
+		if(p == NULL)
+		{
+			panic("no more region to alloc");
+		}
+		//物理内存与虚拟空间建立映射
+		// 因为这里是建立映射到该用户程序的虚拟地址空间，所以传入的页目录地址为e->env_pgdir
+		if( page_insert(e->env_pgdir, p, va_tmp, PTE_W|PTE_U) != 0)
+		{
+			panic("region alloc error");
+		}
+	}
+
 }
 
 //
@@ -291,6 +329,12 @@ region_alloc(struct Env *e, void *va, size_t len)
 // load_icode panics if it encounters problems.
 //  - How might load_icode fail?  What might be wrong with the given input?
 //
+// 为一个用户进程创建初始化二进制程序，堆栈和进程flag
+// 在运行第一个用户模式环境之前，该函数只有当内核初始化时才会被调用
+// 此函数将ELF二进制映像中的所有可加载段加载到环境的用户内存中，从ELF程序头中指示的相应虚拟地址开始运行。
+// 同时它将这些段中标记为程序标题但实际上并不存在于ELF文件中（即程序的bss部分）的所有部分清零。
+//
+// binary指针即为用户程序在内存中开始位置的虚拟地址
 static void
 load_icode(struct Env *e, uint8_t *binary)
 {
@@ -324,10 +368,48 @@ load_icode(struct Env *e, uint8_t *binary)
 
 	// LAB 3: Your code here.
 
+	struct Elf *ELFHDR = (struct ELF*) binary;
+
+	if(ELFHDR->e_magic != ELF_MAGIC)
+	{
+		panic("load_icode failed: The binary we load is not elf.\n");
+	}
+
+	struct Proghdr *ph, *eph;
+	// 起始程序段
+	ph = (struct Proghdr *)((uint8_t *)ELFHDR + ELFHDR->e_phoff);
+	// e_phnum表示程序有多少个程序段
+	eph = ph + ELFHDR->e_phnum;
+	// 将cr3寄存器值改为当前进程的页目录地址
+	// 该改动主要服务ph->p_va该虚拟地址的需要
+	lcr3(PADDR(e->env_pgdir));
+	for(; ph < eph; ph++)
+	{
+		if(ph->p_type == ELF_PROG_LOAD)
+		{
+			if( ph->p_memsz < ph->p_filesz )
+			{
+				panic("ph->p_memsz - ph->p_filesz < 0");
+			}
+
+			region_alloc(e, (void *)ph->p_va, ph->p_memsz);
+			// 从binary+ph->offset处开始，拷贝ph->p_filesz大小到ph->p_va
+			memmove((void*)ph->p_va, binary + ph->p_offset, ph->p_filesz);
+			memset((void*)(ph->p_va + ph->p_filesz), 0, ph->p_memsz - ph->p_filesz);
+		}
+	}
+	// 重新加载内核页目录地址
+	lcr3(PADDR(kern_pgdir));
+
+	// 程序入口设置为 ELF中的程序入口位置
+	e->env_tf.tf_eip = ELFHDR->e_entry;
+
 	// Now map one page for the program's initial stack
 	// at virtual address USTACKTOP - PGSIZE.
 
 	// LAB 3: Your code here.
+
+	region_alloc(e, (void*)(USTACKTOP-PGSIZE),PGSIZE);
 }
 
 //
@@ -337,10 +419,23 @@ load_icode(struct Env *e, uint8_t *binary)
 // before running the first user-mode environment.
 // The new env's parent ID is set to 0.
 //
+// 用 env_alloc 分配一个新的env，用load_icode加载这些二进制elf文件，并为其设置env_type
+// 只有在第一次运行用户程序之前，内核初始化时，这个函数才会被调用。
+// 新的env的parent ID应被设置为0
 void
 env_create(uint8_t *binary, enum EnvType type)
 {
 	// LAB 3: Your code here.
+	
+	struct Env* newEnv;
+	int result = env_alloc(&newEnv, 0);
+	if( result != 0)
+	{
+		panic("env_alloc fail");
+	}
+	
+	load_icode(newEnv,binary);
+	newEnv->env_type = type;
 }
 
 //
@@ -456,7 +551,19 @@ env_run(struct Env *e)
 	//	e->env_tf to sensible values.
 
 	// LAB 3: Your code here.
+	if(curenv != NULL && curenv->env_status == ENV_RUNNING)
+	{
+		curenv->env_status = ENV_RUNNABLE;
+	}
 
-	panic("env_run not yet implemented");
+	// 正在运行的环境设置为新环境
+	curenv = e;
+	curenv->env_status = ENV_RUNNING;
+	curenv->env_runs++;
+	lcr3(PADDR(curenv->env_pgdir));
+
+	env_pop_tf(&curenv->env_tf);
+
+	// panic("env_run not yet implemented");
 }
 
