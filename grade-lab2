@@ -9,7 +9,7 @@ r = Runner(save("jos.out"),
 def test_jos():
     r.run_qemu()
 
-@test(20, "Physical page allocator", parent=test_jos) 
+@test(20, "Physical page allocator", parent=test_jos)
 def test_check_page_alloc():
     r.match(r"check_page_alloc\(\) succeeded!")
 

@@ -395,6 +395,7 @@ load_icode(struct Env *e, uint8_t *binary)
 	// 将cr3寄存器值改为当前进程的页目录地址
 	// 该改动主要服务ph->p_va该虚拟地址的需要
 	lcr3(PADDR(e->env_pgdir));
+	// 将用户程序放置到指定的位置
 	for(; ph < eph; ph++)
 	{
 		if(ph->p_type == ELF_PROG_LOAD)
@@ -403,7 +404,7 @@ load_icode(struct Env *e, uint8_t *binary)
 			{
 				panic("ph->p_memsz - ph->p_filesz < 0");
 			}
-
+			// 为该用户程序分配物理空间
 			region_alloc(e, (void *)ph->p_va, ph->p_memsz);
 			// 从binary+ph->offset处开始，拷贝ph->p_filesz大小到ph->p_va
 			memmove((void*)ph->p_va, binary + ph->p_offset, ph->p_filesz);
@@ -434,18 +435,20 @@ load_icode(struct Env *e, uint8_t *binary)
 // 用 env_alloc 分配一个新的env，用load_icode加载这些二进制elf文件，并为其设置env_type
 // 只有在第一次运行用户程序之前，内核初始化时，这个函数才会被调用。
 // 新的env的parent ID应被设置为0
+// binary 为用户程序所在地址(虚拟地址)
 void
 env_create(uint8_t *binary, enum EnvType type)
 {
 	// LAB 3: Your code here.
 	
 	struct Env* newEnv;
+	// 创建并初始化一个新的程序，返回值为0代表成功
 	int result = env_alloc(&newEnv, 0);
 	if( result != 0)
 	{
 		panic("env_alloc fail");
 	}
-	
+	// 载入到虚拟地址binary
 	load_icode(newEnv,binary);
 	newEnv->env_type = type;
 }
