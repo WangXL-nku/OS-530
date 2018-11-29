@@ -69,7 +69,7 @@ trap_init(void)
 	extern void divide_error();
 	extern void debug_exception();
 	extern void non_maskable_interrupt();
-	extern void breakpoint();
+	extern void break_point();
 	extern void overflow();
 	extern void bounds_check(); 
 	extern void illegal_opcode();
@@ -89,7 +89,7 @@ trap_init(void)
 	SETGATE(idt[T_DEBUG],0,GD_KT,debug_exception,0);
 	SETGATE(idt[T_NMI],0,GD_KT,non_maskable_interrupt,0);
 	// breakpoint needs no kernel mode privilege
-	SETGATE(idt[T_BRKPT],0,GD_KT,breakpoint,3);
+	SETGATE(idt[T_BRKPT],0,GD_KT,break_point,3);
 	SETGATE(idt[T_OFLOW],0,GD_KT,overflow,0);
 	SETGATE(idt[T_BOUND],0,GD_KT,bounds_check,0);
 	SETGATE(idt[T_ILLOP],0,GD_KT,illegal_opcode,0);
@@ -183,6 +183,17 @@ trap_dispatch(struct Trapframe *tf)
 {
 	// Handle processor exceptions.
 	// LAB 3: Your code here.
+	if(tf->tf_trapno == T_PGFLT)
+	{
+		page_fault_handler(tf);
+		return;
+	}
+
+	if(tf->tf_trapno == T_BRKPT)
+	{
+		monitor(tf);
+		return;
+	}
 
 	// Unexpected trap: The user process or the kernel has a bug.
 	print_trapframe(tf);
