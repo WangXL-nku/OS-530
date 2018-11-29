@@ -65,6 +65,8 @@ TRAPHANDLER(aligment_check, T_ALIGN)
 TRAPHANDLER_NOEC(machine_check, T_MCHK)
 TRAPHANDLER_NOEC(SIMD_floating_point_error, T_SIMDERR)
 
+TRAPHANDLER_NOEC(system_call, T_SYSCALL)
+
 
 
 /*
