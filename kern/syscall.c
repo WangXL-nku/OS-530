@@ -21,6 +21,8 @@ sys_cputs(const char *s, size_t len)
 	// Destroy the environment if not.
 
 	// LAB 3: Your code here.
+	// 这里的s指针指向一个虚拟地址，该虚拟地址即为用户想要访问的地址
+	user_mem_assert(curenv,s,len,PTE_U);
 
 	// Print the string supplied by the user.
 	cprintf("%.*s", len, s);

@@ -309,7 +309,7 @@ region_alloc(struct Env *e, void *va, size_t len)
 		{
 			panic("no more region to alloc");
 		}
-		//物理内存与虚拟空间建立映射
+		// 物理内存与虚拟空间建立映射
 		// 因为这里是建立映射到该用户程序的虚拟地址空间，所以传入的页目录地址为e->env_pgdir
 		if( page_insert(e->env_pgdir, p, va_tmp, PTE_W|PTE_U) != 0)
 		{

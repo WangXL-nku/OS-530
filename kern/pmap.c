@@ -667,10 +667,39 @@ static uintptr_t user_mem_check_addr;
 // Returns 0 if the user program can access this range of addresses,
 // and -E_FAULT otherwise.
 //
+// 检查一下当前用户态程序是否有对虚拟地址空间 [va, va+len] 的 perm| PTE_P 访问权限
 int
 user_mem_check(struct Env *env, const void *va, size_t len, int perm)
 {
 	// LAB 3: Your code here.
+	char* start = NULL;
+	char* end = NULL;
+	// 需要确定权限的页面的开始和终止位置
+	start = ROUNDDOWN((char*)va, PGSIZE);
+	end = ROUNDUP((char*)(va+len), PGSIZE);
+	pte_t* cur = NULL;
+
+	for(; start < end; start += PGSIZE)
+	{
+		cur = pgdir_walk(env->env_pgdir, (void	*)start, 0);
+		// 三种情况不能访问：
+		// 1.address is up ULIM
+		// 2.the page table doesn't give it permission
+		// 3.the virtual address doesn't map any ph address
+		if((int)start > ULIM || cur == NULL || (((uint32_t)(*cur) & perm)!=perm))
+		{
+			// If there is an error, set the 'user_mem_check_addr' variable to the first
+			if(start == ROUNDDOWN((char*)va, PGSIZE))
+			{
+				user_mem_check_addr = (uintptr_t) va;
+			}
+			else
+			{
+				user_mem_check_addr = (uintptr_t)start;	
+			}
+			return -E_FAULT;
+		}
+	}
 
 	return 0;
 }
