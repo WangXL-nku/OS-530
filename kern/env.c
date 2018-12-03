@@ -165,6 +165,7 @@ env_init_percpu(void)
 // Returns 0 on success, < 0 on error.  Errors include:
 //	-E_NO_MEM if page directory or table could not be allocated.
 //
+// 初始化进程虚拟空间，分配页目录，并设置相应的e->env_pgdir
 static int
 env_setup_vm(struct Env *e)
 {
@@ -192,14 +193,18 @@ env_setup_vm(struct Env *e)
 	//    - The functions in kern/pmap.h are handy.
 
 	// LAB 3: Your code here.
-
+	// 将进程页目录表入口设为新分配的物理页虚拟地址
 	e->env_pgdir = (pde_t*)page2kva(p);
 	p->pp_ref++;
 
+	// 进程初始化虚拟地址在UTOP之下是空的
 	for(i = 0; i < PDX(UTOP); i++)
 	{
 		e->env_pgdir[i] = 0;
 	}
+	// NPDENTRIES为一个page directory的entry数目
+	// 对于UTOP之上的部分所有env_pgdir都是相同的，都应当设为同kern_pgdir
+	// 在UTOP之上的部分基本都是内核使用的
 	for(i = PDX(UTOP); i < NPDENTRIES; i++)
 	{
 		e->env_pgdir[i] = kern_pgdir[i];
@@ -207,6 +212,7 @@ env_setup_vm(struct Env *e)
 
 	// UVPT maps the env's own page table read-only.
 	// Permissions: kernel R, user R
+	// 将UVPT位置映射到进程自己的page table，并设为只读的
 	e->env_pgdir[PDX(UVPT)] = PADDR(e->env_pgdir) | PTE_P | PTE_U;
 
 	return 0;
@@ -302,6 +308,7 @@ region_alloc(struct Env *e, void *va, size_t len)
 
 	struct PageInfo *p = NULL;
 	void* va_tmp;
+	// 一页页分配物理内存并建立映射
 	for(va_tmp = start; va_tmp<end; va_tmp += PGSIZE)
 	{
 		p = page_alloc(0);
@@ -341,12 +348,14 @@ region_alloc(struct Env *e, void *va, size_t len)
 // load_icode panics if it encounters problems.
 //  - How might load_icode fail?  What might be wrong with the given input?
 //
+// 该进程用于加载用户进程的ELF文件
 // 为一个用户进程创建初始化二进制程序，堆栈和进程flag
 // 在运行第一个用户模式环境之前，该函数只有当内核初始化时才会被调用
 // 此函数将ELF二进制映像中的所有可加载段加载到环境的用户内存中，从ELF程序头中指示的相应虚拟地址开始运行。
 // 同时它将这些段中标记为程序标题但实际上并不存在于ELF文件中（即程序的bss部分）的所有部分清零。
 //
-// binary指针即为用户程序在内存中开始位置的虚拟地址
+// binary指针即为用户程序ELF在内存中开始位置的虚拟地址
+// ELF之所以在内存是因为当前该操作系统尚未建立文件系统
 static void
 load_icode(struct Env *e, uint8_t *binary)
 {
@@ -379,7 +388,7 @@ load_icode(struct Env *e, uint8_t *binary)
 	//  What?  (See env_run() and env_pop_tf() below.)
 
 	// LAB 3: Your code here.
-
+	// 指示binary是一个ELF结构的指针
 	struct Elf *ELFHDR = (struct Elf*) binary;
 
 	if(ELFHDR->e_magic != ELF_MAGIC)
@@ -395,7 +404,7 @@ load_icode(struct Env *e, uint8_t *binary)
 	// 将cr3寄存器值改为当前进程的页目录地址
 	// 该改动主要服务ph->p_va该虚拟地址的需要
 	lcr3(PADDR(e->env_pgdir));
-	// 将用户程序放置到指定的位置
+	// 按照ELF文件中的指示，将用户程序放置到指定的位置
 	for(; ph < eph; ph++)
 	{
 		if(ph->p_type == ELF_PROG_LOAD)
@@ -421,7 +430,7 @@ load_icode(struct Env *e, uint8_t *binary)
 	// at virtual address USTACKTOP - PGSIZE.
 
 	// LAB 3: Your code here.
-
+	// 为用户进程的堆栈分配空间
 	region_alloc(e, (void*)(USTACKTOP-PGSIZE),PGSIZE);
 }
 
@@ -545,6 +554,7 @@ env_pop_tf(struct Trapframe *tf)
 //
 // This function does not return.
 //
+// 该函数用让CPU运行进程e。
 void
 env_run(struct Env *e)
 {
@@ -566,6 +576,7 @@ env_run(struct Env *e)
 	//	e->env_tf to sensible values.
 
 	// LAB 3: Your code here.
+	// 改变之前正在运行程序的设置
 	if(curenv != NULL && curenv->env_status == ENV_RUNNING)
 	{
 		curenv->env_status = ENV_RUNNABLE;
@@ -577,6 +588,8 @@ env_run(struct Env *e)
 	curenv->env_runs++;
 	lcr3(PADDR(curenv->env_pgdir));
 
+	// 将寄存器的值设为运行进程e中保存的寄存器值
+	// 比如eip寄存器，所以只有当该函数执行之后，用户进程才真正开始运行
 	env_pop_tf(&curenv->env_tf);
 
 	// panic("env_run not yet implemented");

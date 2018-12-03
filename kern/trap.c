@@ -186,12 +186,14 @@ trap_dispatch(struct Trapframe *tf)
 {
 	// Handle processor exceptions.
 	// LAB 3: Your code here.
+	// 处理缺页中断
 	if(tf->tf_trapno == T_PGFLT)
 	{
 		page_fault_handler(tf);
 		return;
 	}
 
+	// 处理断点中断
 	if(tf->tf_trapno == T_BRKPT)
 	{
 		monitor(tf);
