@@ -80,9 +80,12 @@ _alltraps:
 	pushal
 
 	movl	$GD_KD, %eax
-
-	movw	%ax, %ds
-	movw	%ax, %es
+/*
+* 尝试删除
+* ds寄存器用于数据段，es寄存器对应于附加数据段
+*/
+	movw	%ax, %ds	# -> Data Segment
+	movw	%ax, %es	# -> Extra Segment
 
 	pushl	%esp
 
