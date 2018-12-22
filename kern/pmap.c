@@ -299,6 +299,11 @@ mem_init_mp(void)
 	//     Permissions: kernel RW, user NONE
 	//
 	// LAB 4: Your code here:
+	int i;
+	for(i=0;i<NCPU;i++)
+	{
+		
+	}
 
 }
 
@@ -320,6 +325,7 @@ page_init(void)
 	// LAB 4:
 	// Change your code to mark the physical page at MPENTRY_PADDR
 	// as in use
+	// 写于本函数最后
 
 	// The example code here marks all physical pages as free.
 	// However this is not truly the case.  What memory is free?
@@ -379,6 +385,12 @@ page_init(void)
         	page_free_list = &pages[i];
 		}
 	}
+
+	// 将MPENTRY_PADDR地址所在物理页剔除出page_free_list
+	pages[PGNUM(MPENTRY_PADDR)+1].pp_link = &pages[PGNUM(MPENTRY_PADDR)-1];
+	// 将该物理页设置为正在使用
+	pages[PGNUM(MPENTRY_PADDR)].pp_ref = 1;
+	pages[PGNUM(MPENTRY_PADDR)].pp_link = NULL;
 }
 
 //
@@ -713,7 +725,20 @@ mmio_map_region(physaddr_t pa, size_t size)
 	// Hint: The staff solution uses boot_map_region.
 	//
 	// Your code here:
-	panic("mmio_map_region not implemented");
+
+	void* res = (void*) base;
+	// 将需要的内存大小转为整PGSIZE
+	size = ROUNDUP(size, PGSIZE);
+	// 当超过MMIOLIM时，panic
+	if(base + size > MMIOLIM)
+	{
+		panic("if this reservation would overflow MMIOLIM");
+	}
+	// 将虚拟地址与物理地址建立映射
+	boot_map_region(kern_pgdir, base, size, pa, PTE_PCD|PTE_W);
+	// base是静态变量
+	base += size;
+	return res;
 }
 
 static uintptr_t user_mem_check_addr;
