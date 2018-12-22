@@ -614,6 +614,8 @@ env_run(struct Env *e)
 	curenv->env_runs++;
 	lcr3(PADDR(curenv->env_pgdir));
 
+	unlock_kernel();
+
 	// 将寄存器的值设为运行进程e中保存的寄存器值
 	// 比如eip寄存器，所以只有当该函数执行之后，用户进程才真正开始运行
 	env_pop_tf(&curenv->env_tf);
