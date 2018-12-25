@@ -205,6 +205,7 @@ sys_page_alloc(envid_t envid, void *va, int perm)
 		return -E_INVAL;
 	}
 	//	-E_INVAL if perm is inappropriate (see above).
+	// PTE_SYSCALL:Flags in PTE_SYSCALL may be used in system calls.  (Others may not.)
 	if(!(perm & PTE_U)||!(perm & PTE_P)||(perm & ~PTE_SYSCALL))
 	{
 		return -E_INVAL;
@@ -389,7 +390,6 @@ sys_ipc_recv(void *dstva)
 {
 	// LAB 4: Your code here.
 	panic("sys_ipc_recv not implemented");
-	return 0;
 }
 
 // Dispatches to the correct kernel function, passing the arguments.
@@ -405,6 +405,16 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 
 	switch (syscallno) {
 		// lab4:
+		case SYS_exofork:
+			return sys_exofork();
+		case SYS_env_set_status:
+			return sys_env_set_status(a1, a2);
+		case SYS_page_alloc:
+			return sys_page_alloc(a1, (void *)a2, a3);
+		case SYS_page_map:
+			return sys_page_map(a1, (void*)a2, a3, (void*)a4, a5);
+		case SYS_page_unmap:
+			return sys_page_unmap(a1, (void *)a2);
 		case SYS_yield:
 			sys_yield();
 			return 0;
