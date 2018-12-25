@@ -65,6 +65,7 @@ _pgfault_upcall:
 	// ways as registers become unavailable as scratch space.
 	//
 	// LAB 4: Your code here.
+	// 这里要完成的是一个缺页中断处理函数的入口函数
 	movl	0x30(%esp),%eax
 	subl	$0x4,%eax
 	movl	%eax,0x30(%esp)
