@@ -159,7 +159,7 @@ trap_init_percpu(void)
 
 	// Load the TSS selector (like other segment selectors, the
 	// bottom three bits are special; we leave them 0)
-	ltr(GD_TSS0 + sizeof(struct Segdesc)*cpunum());
+	ltr(GD_TSS0 + (cpunum()<<3));
 
 	// Load the IDT
 	lidt(&idt_pd);
@@ -383,17 +383,24 @@ page_fault_handler(struct Trapframe *tf)
 	//   (the 'tf' variable points at 'curenv->env_tf').
 
 	// LAB 4: Your code here.
+	// 上面已经处理了内核的缺页异常
+	// 下面处理用户的缺页异常
+	// 如果用户环境有自己的处理函数：
 	if(curenv->env_pgfault_upcall != NULL)
 	{
 		struct UTrapframe *utf;
+		// 如果当前已经在用户异常堆栈中了
+		// 则将新的异常处理在下面压栈，形成递归处理，但中间需要留出32bit的空间
 		if(UXSTACKTOP - PGSIZE <= tf->tf_esp && tf->tf_esp < UXSTACKTOP)
 		{
 			utf = (struct UTrapframe*)(tf->tf_esp - sizeof(struct UTrapframe) - 4);
 		}
+		// 之前没有缺页异常，则直接放在用户User Exception Stack顶部
 		else
 		{
 			utf = (struct UTrapframe*)(UXSTACKTOP - sizeof(struct UTrapframe));
 		}
+		// 检查权限
 		user_mem_assert(curenv, (void *)utf, sizeof(struct UTrapframe), PTE_P|PTE_W);
 
 		utf->utf_fault_va = fault_va;

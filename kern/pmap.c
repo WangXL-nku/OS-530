@@ -210,7 +210,8 @@ mem_init(void)
 	boot_map_region(
 					kern_pgdir,
 					UPAGES,
-					ROUNDUP(npages*sizeof(struct PageInfo),PGSIZE),
+					// ROUNDUP(npages*sizeof(struct PageInfo),PGSIZE),
+					PTSIZE,
 					PADDR(pages),
 					PTE_U|PTE_P);
 
@@ -365,6 +366,10 @@ page_init(void)
 		{
 			pages[i].pp_ref = 1;
 		}
+		else if(i == MPENTRY_PADDR/PGSIZE)
+		{
+			pages[i].pp_ref = 1;
+		}
 		//IO部分内存不能被分配
 		else if(i >= IOPHYSMEM/PGSIZE && i < EXTPHYSMEM/PGSIZE)
 		{
@@ -391,11 +396,11 @@ page_init(void)
 		}
 	}
 
-	// 将MPENTRY_PADDR地址所在物理页剔除出page_free_list
-	pages[PGNUM(MPENTRY_PADDR)+1].pp_link = &pages[PGNUM(MPENTRY_PADDR)-1];
-	// 将该物理页设置为正在使用
-	pages[PGNUM(MPENTRY_PADDR)].pp_ref = 1;
-	pages[PGNUM(MPENTRY_PADDR)].pp_link = NULL;
+	// // 将MPENTRY_PADDR地址所在物理页剔除出page_free_list
+	// pages[PGNUM(MPENTRY_PADDR)+1].pp_link = &pages[PGNUM(MPENTRY_PADDR)-1];
+	// // 将该物理页设置为正在使用
+	// pages[PGNUM(MPENTRY_PADDR)].pp_ref = 1;
+	// pages[PGNUM(MPENTRY_PADDR)].pp_link = NULL;
 }
 
 //
@@ -740,7 +745,7 @@ mmio_map_region(physaddr_t pa, size_t size)
 		panic("if this reservation would overflow MMIOLIM");
 	}
 	// 将虚拟地址与物理地址建立映射
-	boot_map_region(kern_pgdir, base, size, pa, PTE_PCD|PTE_W);
+	boot_map_region(kern_pgdir, base, size, pa, PTE_PCD|PTE_W |PTE_PWT);
 	// base是静态变量
 	base += size;
 	return res;
