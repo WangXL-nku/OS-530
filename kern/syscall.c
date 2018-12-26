@@ -149,6 +149,7 @@ sys_env_set_status(envid_t envid, int status)
 // Returns 0 on success, < 0 on error.  Errors are:
 //	-E_BAD_ENV if environment envid doesn't currently exist,
 //		or the caller doesn't have permission to change envid.
+// 该函数作用：用户环境调用它来注册一个缺页中断处理函数
 static int
 sys_env_set_pgfault_upcall(envid_t envid, void *func)
 {
@@ -156,6 +157,7 @@ sys_env_set_pgfault_upcall(envid_t envid, void *func)
 	// panic("sys_env_set_pgfault_upcall not implemented");
 	struct Env* _env;
 	// -E_BAD_ENV if environment envid doesn't currently exist
+	//		or the caller doesn't have permission to change envid
 	if(envid2env(envid, &_env, 1) < 0)
 	{
 		return -E_BAD_ENV;

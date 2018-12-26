@@ -65,7 +65,10 @@ _pgfault_upcall:
 	// ways as registers become unavailable as scratch space.
 	//
 	// LAB 4: Your code here.
-	// 这里要完成的是一个缺页中断处理函数的入口函数
+	// 这里要完成的是一个缺页中断处理函数的收尾操作
+	// 即我们需要把应该恢复的东西都恢复回去
+
+	// 将堆栈中esp值减4
 	movl	0x30(%esp),%eax
 	subl	$0x4,%eax
 	movl	%eax,0x30(%esp)

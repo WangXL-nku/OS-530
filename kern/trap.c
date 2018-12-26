@@ -346,8 +346,6 @@ page_fault_handler(struct Trapframe *tf)
 	// LAB 3: Your code here.
 	if((tf->tf_cs & 0x3) == 0)
 	{
-		// cprintf("%d user fault va %08x ip %08x\n",
-		// cpunum(),fault_va, tf->tf_eip);
 		panic("kernel page_fault");
 	}
 
@@ -389,8 +387,13 @@ page_fault_handler(struct Trapframe *tf)
 	if(curenv->env_pgfault_upcall != NULL)
 	{
 		struct UTrapframe *utf;
-		// 如果当前已经在用户异常堆栈中了
+		
+		// page fault upcall也可能引起一个page fault，这种情况需要递归处理
+		// 因此，如果当前已经在用户异常堆栈中了
 		// 则将新的异常处理在下面压栈，形成递归处理，但中间需要留出32bit的空间
+		// tf通常的位置和异常处理引发的位置，在trapentry.S、memlayout.h中看
+		// 以下两个if语句均可
+		// if(!(tf->tf_esp < USTACKTOP && tf->tf_esp > USTACKTOP - PGSIZE))
 		if(UXSTACKTOP - PGSIZE <= tf->tf_esp && tf->tf_esp < UXSTACKTOP)
 		{
 			utf = (struct UTrapframe*)(tf->tf_esp - sizeof(struct UTrapframe) - 4);
@@ -403,6 +406,7 @@ page_fault_handler(struct Trapframe *tf)
 		// 检查权限
 		user_mem_assert(curenv, (void *)utf, sizeof(struct UTrapframe), PTE_P|PTE_W);
 
+		// 设置中断信息
 		utf->utf_fault_va = fault_va;
 		utf->utf_err = tf->tf_err;
 		utf->utf_regs = tf->tf_regs;
@@ -410,7 +414,9 @@ page_fault_handler(struct Trapframe *tf)
 		utf->utf_eflags = tf->tf_eflags;
 		utf->utf_esp = tf->tf_esp;
 
+		// 将eip(指令地址)设置为用户进程缺页中断处理函数
 		curenv->env_tf.tf_eip = (uintptr_t)curenv->env_pgfault_upcall;
+		// 将堆栈位置设置为UTrapframe结构指针
 		curenv->env_tf.tf_esp = (uintptr_t)utf;
 		env_run(curenv);
 	}

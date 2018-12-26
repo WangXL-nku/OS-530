@@ -29,12 +29,14 @@ set_pgfault_handler(void (*handler)(struct UTrapframe *utf))
 	if (_pgfault_handler == 0) {
 		// First time through!
 		// LAB 4: Your code here.
-		// panic("set_pgfault_handler not implemented");
+		// 为用户异常堆栈分配一个pgsize的空间
 		r = sys_page_alloc(0, (void*)(UXSTACKTOP - PGSIZE), (PTE_U|PTE_P|PTE_W));
+		// 如果发生错误则panic
 		if(r < 0)
 		{
 			panic("set_pgfault_handler: %e", r);
 		}
+		// 调用sys_env_set_pgfault_upcall，设置当前进程的缺页中断回调函数
 		sys_env_set_pgfault_upcall(0, _pgfault_upcall);
 	}
 
