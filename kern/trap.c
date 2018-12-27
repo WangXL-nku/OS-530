@@ -93,6 +93,23 @@ trap_init(void)
 	extern void SIMD_floating_point_error();
 	extern void system_call();
 
+	extern void trap_irq0();
+	extern void trap_irq1();
+	extern void trap_irq2();
+	extern void trap_irq3();
+	extern void trap_irq4();
+	extern void trap_irq5();
+	extern void trap_irq6();
+	extern void trap_irq7();
+	extern void trap_irq8();
+	extern void trap_irq9();
+	extern void trap_irq10();
+	extern void trap_irq11();
+	extern void trap_irq12();
+	extern void trap_irq13();
+	extern void trap_irq14();
+	extern void trap_irq15();
+
 	SETGATE(idt[T_DIVIDE],0,GD_KT,divide_error,0);
 	SETGATE(idt[T_DEBUG],0,GD_KT,debug_exception,0);
 	SETGATE(idt[T_NMI],0,GD_KT,non_maskable_interrupt,0);
@@ -114,6 +131,23 @@ trap_init(void)
 	SETGATE(idt[T_SIMDERR],0,GD_KT,SIMD_floating_point_error,0);
 
 	SETGATE(idt[T_SYSCALL],0,GD_KT,system_call,3);
+
+	SETGATE(idt[IRQ_OFFSET + 0],0,GD_KT,trap_irq0,0);
+	SETGATE(idt[IRQ_OFFSET + 1],0,GD_KT,trap_irq1,0);
+	SETGATE(idt[IRQ_OFFSET + 2],0,GD_KT,trap_irq2,0);
+	SETGATE(idt[IRQ_OFFSET + 3],0,GD_KT,trap_irq3,0);
+	SETGATE(idt[IRQ_OFFSET + 4],0,GD_KT,trap_irq4,0);
+	SETGATE(idt[IRQ_OFFSET + 5],0,GD_KT,trap_irq5,0);
+	SETGATE(idt[IRQ_OFFSET + 6],0,GD_KT,trap_irq6,0);
+	SETGATE(idt[IRQ_OFFSET + 7],0,GD_KT,trap_irq7,0);
+	SETGATE(idt[IRQ_OFFSET + 8],0,GD_KT,trap_irq8,0);
+	SETGATE(idt[IRQ_OFFSET + 9],0,GD_KT,trap_irq9,0);
+	SETGATE(idt[IRQ_OFFSET + 10],0,GD_KT,trap_irq10,0);
+	SETGATE(idt[IRQ_OFFSET + 11],0,GD_KT,trap_irq11,0);
+	SETGATE(idt[IRQ_OFFSET + 12],0,GD_KT,trap_irq12,0);
+	SETGATE(idt[IRQ_OFFSET + 13],0,GD_KT,trap_irq13,0);
+	SETGATE(idt[IRQ_OFFSET + 14],0,GD_KT,trap_irq14,0);
+	SETGATE(idt[IRQ_OFFSET + 15],0,GD_KT,trap_irq15,0);
 
 
 	// Per-CPU setup 
@@ -239,10 +273,6 @@ trap_dispatch(struct Trapframe *tf)
 					tf->tf_regs.reg_ebx,
 					tf->tf_regs.reg_edi,
 					tf->tf_regs.reg_esi);
-		if(flag < 0)
-		{
-			panic("wrong type in syscall");
-		}
 
 		tf->tf_regs.reg_eax = flag;
 		return;
@@ -260,6 +290,11 @@ trap_dispatch(struct Trapframe *tf)
 	// Handle clock interrupts. Don't forget to acknowledge the
 	// interrupt using lapic_eoi() before calling the scheduler!
 	// LAB 4: Your code here.
+	if (tf->tf_trapno == IRQ_OFFSET + IRQ_TIMER)
+	{
+		lapic_eoi();
+		sched_yield();
+	}
 
 
 	// Unexpected trap: The user process or the kernel has a bug.
