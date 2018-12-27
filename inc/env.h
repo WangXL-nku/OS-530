@@ -44,6 +44,7 @@ enum EnvType {
 	ENV_TYPE_FS,		// File system server
 };
 
+//表示进程的数据结构
 struct Env {
 	struct Trapframe env_tf;	// Saved registers
 	struct Env *env_link;		// Next free Env

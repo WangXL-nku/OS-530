@@ -50,6 +50,7 @@ i386_init(void)
 
 	// Acquire the big kernel lock before waking up APs
 	// Your code here:
+	lock_kernel();
 
 	// Starting non-boot CPUs
 	boot_aps();
@@ -63,6 +64,13 @@ i386_init(void)
 #else
 	// Touch all you want.
 	ENV_CREATE(user_icode, ENV_TYPE_USER);
+	// ENV_CREATE(user_primes, ENV_TYPE_USER);
+	// 创造三个运行user_yield的环境
+	ENV_CREATE(user_spin,ENV_TYPE_USER);
+	// ENV_CREATE(user_yield,ENV_TYPE_USER);
+	// ENV_CREATE(user_yield,ENV_TYPE_USER);
+	// ENV_CREATE(user_yield,ENV_TYPE_USER);
+	// ENV_CREATE(user_dumbfork,ENV_TYPE_USER);
 #endif // TEST*
 
 	// Should not be necessary - drains keyboard because interrupt has given up.
@@ -75,9 +83,13 @@ i386_init(void)
 // While boot_aps is booting a given CPU, it communicates the per-core
 // stack pointer that should be loaded by mpentry.S to that CPU in
 // this variable.
+//
+// 当boot_aps正在引导给定的CPU时
+// 它会将由mpentry.S加载的每个核心堆栈指针传递给该变量表示的CPU。
 void *mpentry_kstack;
 
 // Start the non-boot (AP) processors.
+// 启动一个CPU
 static void
 boot_aps(void)
 {
@@ -87,6 +99,7 @@ boot_aps(void)
 
 	// Write entry code to unused memory at MPENTRY_PADDR
 	code = KADDR(MPENTRY_PADDR);
+	// 将mpentry.S中代码复制到指定位置MPENTRY_PADDR
 	memmove(code, mpentry_start, mpentry_end - mpentry_start);
 
 	// Boot each AP one at a time
@@ -122,9 +135,11 @@ mp_main(void)
 	// only one CPU can enter the scheduler at a time!
 	//
 	// Your code here:
+	lock_kernel();
+	sched_yield();
 
 	// Remove this after you finish Exercise 4
-	for (;;);
+	// for (;;);
 }
 
 /*

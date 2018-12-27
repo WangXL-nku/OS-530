@@ -73,6 +73,83 @@ trap_init(void)
 
 	// LAB 3: Your code here.
 
+	extern void divide_error();
+	extern void debug_exception();
+	extern void non_maskable_interrupt();
+	extern void break_point();
+	extern void overflow();
+	extern void bounds_check(); 
+	extern void illegal_opcode();
+	extern void device_not_available(); 
+	extern void double_fault();
+	extern void invalid_task_switch_segment();
+	extern void segment_not_present();
+	extern void stack_exception();
+	extern void general_protection_fault();
+	extern void page_fault();
+	extern void floating_point_error();
+	extern void aligment_check();
+	extern void machine_check();
+	extern void SIMD_floating_point_error();
+	extern void system_call();
+
+	extern void trap_irq0();
+	extern void trap_irq1();
+	extern void trap_irq2();
+	extern void trap_irq3();
+	extern void trap_irq4();
+	extern void trap_irq5();
+	extern void trap_irq6();
+	extern void trap_irq7();
+	extern void trap_irq8();
+	extern void trap_irq9();
+	extern void trap_irq10();
+	extern void trap_irq11();
+	extern void trap_irq12();
+	extern void trap_irq13();
+	extern void trap_irq14();
+	extern void trap_irq15();
+
+	SETGATE(idt[T_DIVIDE],0,GD_KT,divide_error,0);
+	SETGATE(idt[T_DEBUG],0,GD_KT,debug_exception,0);
+	SETGATE(idt[T_NMI],0,GD_KT,non_maskable_interrupt,0);
+	// breakpoint needs no kernel mode privilege
+	SETGATE(idt[T_BRKPT],0,GD_KT,break_point,3);
+	SETGATE(idt[T_OFLOW],0,GD_KT,overflow,0);
+	SETGATE(idt[T_BOUND],0,GD_KT,bounds_check,0);
+	SETGATE(idt[T_ILLOP],0,GD_KT,illegal_opcode,0);
+	SETGATE(idt[T_DEVICE],0,GD_KT,device_not_available,0);
+	SETGATE(idt[T_DBLFLT],0,GD_KT,double_fault,0);
+	SETGATE(idt[T_TSS],0,GD_KT,invalid_task_switch_segment,0);
+	SETGATE(idt[T_SEGNP],0,GD_KT,segment_not_present,0);
+	SETGATE(idt[T_STACK],0,GD_KT,stack_exception,0);
+	SETGATE(idt[T_GPFLT],0,GD_KT,general_protection_fault,0);
+	SETGATE(idt[T_PGFLT],0,GD_KT,page_fault,0);
+	SETGATE(idt[T_FPERR],0,GD_KT,floating_point_error,0);
+	SETGATE(idt[T_ALIGN],0,GD_KT,aligment_check,0);
+	SETGATE(idt[T_MCHK],0,GD_KT,machine_check,0);
+	SETGATE(idt[T_SIMDERR],0,GD_KT,SIMD_floating_point_error,0);
+
+	SETGATE(idt[T_SYSCALL],0,GD_KT,system_call,3);
+
+	SETGATE(idt[IRQ_OFFSET + 0],0,GD_KT,trap_irq0,0);
+	SETGATE(idt[IRQ_OFFSET + 1],0,GD_KT,trap_irq1,0);
+	SETGATE(idt[IRQ_OFFSET + 2],0,GD_KT,trap_irq2,0);
+	SETGATE(idt[IRQ_OFFSET + 3],0,GD_KT,trap_irq3,0);
+	SETGATE(idt[IRQ_OFFSET + 4],0,GD_KT,trap_irq4,0);
+	SETGATE(idt[IRQ_OFFSET + 5],0,GD_KT,trap_irq5,0);
+	SETGATE(idt[IRQ_OFFSET + 6],0,GD_KT,trap_irq6,0);
+	SETGATE(idt[IRQ_OFFSET + 7],0,GD_KT,trap_irq7,0);
+	SETGATE(idt[IRQ_OFFSET + 8],0,GD_KT,trap_irq8,0);
+	SETGATE(idt[IRQ_OFFSET + 9],0,GD_KT,trap_irq9,0);
+	SETGATE(idt[IRQ_OFFSET + 10],0,GD_KT,trap_irq10,0);
+	SETGATE(idt[IRQ_OFFSET + 11],0,GD_KT,trap_irq11,0);
+	SETGATE(idt[IRQ_OFFSET + 12],0,GD_KT,trap_irq12,0);
+	SETGATE(idt[IRQ_OFFSET + 13],0,GD_KT,trap_irq13,0);
+	SETGATE(idt[IRQ_OFFSET + 14],0,GD_KT,trap_irq14,0);
+	SETGATE(idt[IRQ_OFFSET + 15],0,GD_KT,trap_irq15,0);
+
+
 	// Per-CPU setup 
 	trap_init_percpu();
 }
@@ -106,17 +183,17 @@ trap_init_percpu(void)
 
 	// Setup a TSS so that we get the right stack
 	// when we trap to the kernel.
-	ts.ts_esp0 = KSTACKTOP;
-	ts.ts_ss0 = GD_KD;
 
+	thiscpu->cpu_ts.ts_esp0 = KSTACKTOP - cpunum() * (KSTKSIZE + KSTKGAP);
+	thiscpu->cpu_ts.ts_ss0 = GD_KD;
 	// Initialize the TSS slot of the gdt.
-	gdt[GD_TSS0 >> 3] = SEG16(STS_T32A, (uint32_t) (&ts),
+	gdt[(GD_TSS0 >> 3) + cpunum()] = SEG16(STS_T32A, (uint32_t) (&(thiscpu->cpu_ts)),
 					sizeof(struct Taskstate) - 1, 0);
-	gdt[GD_TSS0 >> 3].sd_s = 0;
+	gdt[(GD_TSS0 >> 3) + cpunum()].sd_s = 0;
 
 	// Load the TSS selector (like other segment selectors, the
 	// bottom three bits are special; we leave them 0)
-	ltr(GD_TSS0);
+	ltr(GD_TSS0 + (cpunum()<<3));
 
 	// Load the IDT
 	lidt(&idt_pd);
@@ -173,6 +250,33 @@ trap_dispatch(struct Trapframe *tf)
 {
 	// Handle processor exceptions.
 	// LAB 3: Your code here.
+	// 处理缺页中断
+	if(tf->tf_trapno == T_PGFLT)
+	{
+		page_fault_handler(tf);
+		return;
+	}
+
+	// 处理断点中断
+	if(tf->tf_trapno == T_BRKPT)
+	{
+		monitor(tf);
+		return;
+	}
+
+	if(tf->tf_trapno == T_SYSCALL)
+	{
+		int flag;
+		flag = syscall(tf->tf_regs.reg_eax,
+					tf->tf_regs.reg_edx,
+					tf->tf_regs.reg_ecx,
+					tf->tf_regs.reg_ebx,
+					tf->tf_regs.reg_edi,
+					tf->tf_regs.reg_esi);
+
+		tf->tf_regs.reg_eax = flag;
+		return;
+	}
 
 	// Handle spurious interrupts
 	// The hardware sometimes raises these because of noise on the
@@ -186,6 +290,12 @@ trap_dispatch(struct Trapframe *tf)
 	// Handle clock interrupts. Don't forget to acknowledge the
 	// interrupt using lapic_eoi() before calling the scheduler!
 	// LAB 4: Your code here.
+	if (tf->tf_trapno == IRQ_OFFSET + IRQ_TIMER)
+	{
+		lapic_eoi();
+		sched_yield();
+	}
+
 
 	// Handle keyboard and serial interrupts.
 	// LAB 5: Your code here.
@@ -227,6 +337,7 @@ trap(struct Trapframe *tf)
 		// serious kernel work.
 		// LAB 4: Your code here.
 		assert(curenv);
+		lock_kernel();
 
 		// Garbage collect if current enviroment is a zombie
 		if (curenv->env_status == ENV_DYING) {
@@ -271,6 +382,10 @@ page_fault_handler(struct Trapframe *tf)
 	// Handle kernel-mode page faults.
 
 	// LAB 3: Your code here.
+	if((tf->tf_cs & 0x3) == 0)
+	{
+		panic("kernel page_fault");
+	}
 
 	// We've already handled kernel-mode exceptions, so if we get here,
 	// the page fault happened in user mode.
@@ -304,6 +419,45 @@ page_fault_handler(struct Trapframe *tf)
 	//   (the 'tf' variable points at 'curenv->env_tf').
 
 	// LAB 4: Your code here.
+	// 上面已经处理了内核的缺页异常
+	// 下面处理用户的缺页异常
+	// 如果用户环境有自己的处理函数：
+	if(curenv->env_pgfault_upcall != NULL)
+	{
+		struct UTrapframe *utf;
+		
+		// page fault upcall也可能引起一个page fault，这种情况需要递归处理
+		// 因此，如果当前已经在用户异常堆栈中了
+		// 则将新的异常处理在下面压栈，形成递归处理，但中间需要留出32bit的空间
+		// tf通常的位置和异常处理引发的位置，在trapentry.S、memlayout.h中看
+		// 以下两个if语句均可
+		// if(!(tf->tf_esp < USTACKTOP && tf->tf_esp > USTACKTOP - PGSIZE))
+		if(UXSTACKTOP - PGSIZE <= tf->tf_esp && tf->tf_esp < UXSTACKTOP)
+		{
+			utf = (struct UTrapframe*)(tf->tf_esp - sizeof(struct UTrapframe) - 4);
+		}
+		// 之前没有缺页异常，则直接放在用户User Exception Stack顶部
+		else
+		{
+			utf = (struct UTrapframe*)(UXSTACKTOP - sizeof(struct UTrapframe));
+		}
+		// 检查权限
+		user_mem_assert(curenv, (void *)utf, sizeof(struct UTrapframe), PTE_P|PTE_W);
+
+		// 设置中断信息
+		utf->utf_fault_va = fault_va;
+		utf->utf_err = tf->tf_err;
+		utf->utf_regs = tf->tf_regs;
+		utf->utf_eip = tf->tf_eip;
+		utf->utf_eflags = tf->tf_eflags;
+		utf->utf_esp = tf->tf_esp;
+
+		// 将eip(指令地址)设置为用户进程缺页中断处理函数
+		curenv->env_tf.tf_eip = (uintptr_t)curenv->env_pgfault_upcall;
+		// 将堆栈位置设置为UTrapframe结构指针
+		curenv->env_tf.tf_esp = (uintptr_t)utf;
+		env_run(curenv);
+	}
 
 	// Destroy the environment that caused the fault.
 	cprintf("[%08x] user fault va %08x ip %08x\n",

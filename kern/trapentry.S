@@ -47,10 +47,62 @@
 /*
  * Lab 3: Your code here for generating entry points for the different traps.
  */
+TRAPHANDLER_NOEC(divide_error, T_DIVIDE)
+TRAPHANDLER_NOEC(debug_exception, T_DEBUG)
+TRAPHANDLER_NOEC(non_maskable_interrupt, T_NMI)
+TRAPHANDLER_NOEC(break_point, T_BRKPT)
+TRAPHANDLER_NOEC(overflow, T_OFLOW)
+TRAPHANDLER_NOEC(bounds_check, T_BOUND)
+TRAPHANDLER_NOEC(illegal_opcode, T_ILLOP)
+TRAPHANDLER_NOEC(device_not_available, T_DEVICE)
+TRAPHANDLER(double_fault, T_DBLFLT)
+TRAPHANDLER(invalid_task_switch_segment, T_TSS)
+TRAPHANDLER(segment_not_present, T_SEGNP)
+TRAPHANDLER(stack_exception, T_STACK)
+TRAPHANDLER(general_protection_fault, T_GPFLT)
+TRAPHANDLER(page_fault, T_PGFLT)
+TRAPHANDLER_NOEC(floating_point_error, T_FPERR)
+TRAPHANDLER(aligment_check, T_ALIGN)
+TRAPHANDLER_NOEC(machine_check, T_MCHK)
+TRAPHANDLER_NOEC(SIMD_floating_point_error, T_SIMDERR)
 
+TRAPHANDLER_NOEC(system_call, T_SYSCALL)
 
+TRAPHANDLER_NOEC(trap_irq0, IRQ_OFFSET + 0)
+TRAPHANDLER_NOEC(trap_irq1, IRQ_OFFSET + 1)
+TRAPHANDLER_NOEC(trap_irq2, IRQ_OFFSET + 2)
+TRAPHANDLER_NOEC(trap_irq3, IRQ_OFFSET + 3)
+TRAPHANDLER_NOEC(trap_irq4, IRQ_OFFSET + 4)
+TRAPHANDLER_NOEC(trap_irq5, IRQ_OFFSET + 5)
+TRAPHANDLER_NOEC(trap_irq6, IRQ_OFFSET + 6)
+TRAPHANDLER_NOEC(trap_irq7, IRQ_OFFSET + 7)
+TRAPHANDLER_NOEC(trap_irq8, IRQ_OFFSET + 8)
+TRAPHANDLER_NOEC(trap_irq9, IRQ_OFFSET + 9)
+TRAPHANDLER_NOEC(trap_irq10, IRQ_OFFSET + 10)
+TRAPHANDLER_NOEC(trap_irq11, IRQ_OFFSET + 11)
+TRAPHANDLER_NOEC(trap_irq12, IRQ_OFFSET + 12)
+TRAPHANDLER_NOEC(trap_irq13, IRQ_OFFSET + 13)
+TRAPHANDLER_NOEC(trap_irq14, IRQ_OFFSET + 14)
+TRAPHANDLER_NOEC(trap_irq15, IRQ_OFFSET + 15)
 
 /*
  * Lab 3: Your code here for _alltraps
  */
+_alltraps:
+	pushw	$0x0
+	pushw	%ds
+	pushw	$0x0
+	pushw	%es
+	pushal
 
+	movl	$GD_KD, %eax
+/*
+* 尝试删除
+* ds寄存器用于数据段，es寄存器对应于附加数据段
+*/
+	movw	%ax, %ds	# -> Data Segment
+	movw	%ax, %es	# -> Extra Segment
+
+	pushl	%esp
+
+	call	trap
