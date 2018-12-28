@@ -48,6 +48,17 @@ bc_pgfault(struct UTrapframe *utf)
 	// the disk.
 	//
 	// LAB 5: you code here:
+	addr = ROUNDDOWN(addr, PGSIZE);
+	r = sys_page_alloc(0, addr, PTE_W|PTE_U|PTE_P);
+	if(r < 0)
+	{
+		panic("bc_pgfault sys_page_alloc: %e", r);
+	}
+	r = ide_read(blockno*BLKSECTS, addr, BLKSECTS);
+	if (r < 0)
+	{
+		panic("bc_pgfault ide_read: %e", r);
+	}
 
 	// Clear the dirty bit for the disk block page since we just read the
 	// block from disk
@@ -68,6 +79,7 @@ bc_pgfault(struct UTrapframe *utf)
 // Hint: Use va_is_mapped, va_is_dirty, and ide_write.
 // Hint: Use the PTE_SYSCALL constant when calling sys_page_map.
 // Hint: Don't forget to round addr down.
+// 该函数将块写入磁盘
 void
 flush_block(void *addr)
 {
@@ -77,7 +89,25 @@ flush_block(void *addr)
 		panic("flush_block of bad va %08x", addr);
 
 	// LAB 5: Your code here.
-	panic("flush_block not implemented");
+	// 上面先根据地址计算对应的blockno，然后然后检查正确性
+	int r;
+	addr = ROUNDDOWN(addr, PGSIZE);
+	// 判断是否是脏块，不是就不用写了
+	if (va_is_mapped(addr) && va_is_dirty(addr))
+	{
+		// 如果是则写回磁盘并清除dirty位
+		r = ide_write(blockno * BLKSECTS, addr, BLKSECTS);
+		if(r < 0)
+		{
+			panic("flush_block, ide_write: %e", r);
+		}
+		r = sys_page_map(0, addr, 0, addr, uvpt[PGNUM(addr)] & PTE_SYSCALL);
+		if(r < 0)
+		{
+			panic("flush_block, sys_page_map: %e", r);
+		}
+	}
+	// panic("flush_block not implemented");
 }
 
 // Test that the block cache works, by smashing the superblock and

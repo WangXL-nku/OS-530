@@ -54,6 +54,7 @@ free_block(uint32_t blockno)
 // -E_NO_DISK if we are out of blocks.
 //
 // Hint: use free_block as an example for manipulating the bitmap.
+// 功能：在位图中查找1个空闲磁盘块，标记为占用并返回块序号
 int
 alloc_block(void)
 {
@@ -62,7 +63,19 @@ alloc_block(void)
 	// super->s_nblocks blocks in the disk altogether.
 
 	// LAB 5: Your code here.
-	panic("alloc_block not implemented");
+	uint32_t blockno;
+	int bitmap_block_size = (super->s_nblocks + BLKBITSIZE - 1)/ BLKBITSIZE;
+	// s_nblocks: Total number of blocks on disk
+	for (blockno = 2 + bitmap_block_size; blockno < super->s_nblocks; blockno++)
+	{
+		if (block_is_free(blockno))
+		{
+			bitmap[blockno/32] &= ~(1<<(blockno%32));
+			flush_block(bitmap);
+			return blockno;
+		}
+	}
+	// panic("alloc_block not implemented");
 	return -E_NO_DISK;
 }
 
@@ -134,8 +147,41 @@ fs_init(void)
 static int
 file_block_walk(struct File *f, uint32_t filebno, uint32_t **ppdiskbno, bool alloc)
 {
-       // LAB 5: Your code here.
-       panic("file_block_walk not implemented");
+	// LAB 5: Your code here.
+	int r;
+	if (filebno >= NDIRECT + NINDIRECT)
+	{
+		return -E_INVAL;
+	}
+	if (filebno < NDIRECT)
+	{
+		if (ppdiskbno)
+		{
+			*ppdiskbno = f->f_direct + filebno;
+		}
+		return 0;
+	}
+	if ((alloc==0) && (f->f_indirect==0))
+	{
+		return -E_NOT_FOUND;
+	}
+	if (!f->f_indirect)
+	{
+		r = alloc_block();
+		if (r < 0)
+		{
+				return -E_NO_DISK;
+		}
+		f->f_indirect = r;
+		memset (diskaddr(r), 0, BLKSIZE);
+		flush_block(diskaddr(r));
+	}
+	if (ppdiskbno)
+	{
+		*ppdiskbno = (uint32_t *) diskaddr(f->f_indirect) + filebno - NDIRECT;
+	}
+	return 0;
+    // panic("file_block_walk not implemented");
 }
 
 // Set *blk to the address in memory where the filebno'th
@@ -146,11 +192,32 @@ file_block_walk(struct File *f, uint32_t filebno, uint32_t **ppdiskbno, bool all
 //	-E_INVAL if filebno is out of range.
 //
 // Hint: Use file_block_walk and alloc_block.
+// 将文件中的块映射到实际磁盘块，必要时分配一个新磁盘块
 int
 file_get_block(struct File *f, uint32_t filebno, char **blk)
 {
-       // LAB 5: Your code here.
-       panic("file_get_block not implemented");
+	// LAB 5: Your code here.
+	int r;
+	uint32_t* pdiskbno;
+	r = file_block_walk(f, filebno, &pdiskbno, 1);
+	if(r < 0)
+	{
+		return -E_INVAL;
+	}
+	if (*pdiskbno == 0)
+	{
+		r = alloc_block();
+		if (r < 0)
+		{
+			return -E_NO_DISK;
+		}
+		*pdiskbno = r;
+		memset(diskaddr(r), 0, BLKSIZE);
+		flush_block(diskaddr(r));
+	}
+	*blk = diskaddr(*pdiskbno);
+	return 0;
+	// panic("file_get_block not implemented");
 }
 
 // Try to find a file named "name" in dir.  If so, set *file to it.
