@@ -79,25 +79,37 @@ duppage(envid_t envid, unsigned pn)
 	// LAB 4: Your code here.
 	// panic("duppage not implemented");
 	void *addr = (void *)(pn * PGSIZE);
-	if((uvpt[pn] & PTE_W) || (uvpt[pn] & PTE_COW))
+	if (uvpt[pn] & PTE_SHARE)
 	{
-		r = sys_page_map(0, addr, envid, addr, PTE_P|PTE_U|PTE_COW);
-		if(r < 0)
+		r = sys_page_map(sys_getenvid(), addr, envid, addr, uvpt[pn] & PTE_SYSCALL);
+		if (r < 0)
 		{
-			panic("duppage: 1 %e", r);
-		}
-		r = sys_page_map(0, addr, 0, addr, PTE_P|PTE_U|PTE_COW);
-		if(r < 0)
-		{
-			panic("duppage: 2 %e", r);	
+			panic("duppage: 0 %e", r);
+			return r;
 		}
 	}
 	else
 	{
-		r = sys_page_map(0, addr, envid, addr, PTE_U|PTE_P);
-		if(r < 0)
+		if((uvpt[pn] & PTE_W) || (uvpt[pn] & PTE_COW))
 		{
-			panic("duppage: 3 %e", r);
+			r = sys_page_map(0, addr, envid, addr, PTE_P|PTE_U|PTE_COW);
+			if(r < 0)
+			{
+				panic("duppage: 1 %e", r);
+			}
+			r = sys_page_map(0, addr, 0, addr, PTE_P|PTE_U|PTE_COW);
+			if(r < 0)
+			{
+				panic("duppage: 2 %e", r);	
+			}
+		}
+		else
+		{
+			r = sys_page_map(0, addr, envid, addr, PTE_U|PTE_P);
+			if(r < 0)
+			{
+				panic("duppage: 3 %e", r);
+			}
 		}
 	}
 	return 0;
